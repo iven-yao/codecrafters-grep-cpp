@@ -4,6 +4,9 @@
 bool match_pattern(const std::string& input_line, const std::string& pattern) {
     if (pattern.length() == 1) {
         return input_line.find(pattern) != std::string::npos;
+    } 
+    else if(pattern == "\\d") {
+        return input_line.find_first_of("0123456789") != std::string::npos;
     }
     else {
         throw std::runtime_error("Unhandled pattern " + pattern);
@@ -38,8 +41,10 @@ int main(int argc, char* argv[]) {
     
     try {
         if (match_pattern(input_line, pattern)) {
+            std::cout << "true";
             return 0;
         } else {
+            std::cout << "false";
             return 1;
         }
     } catch (const std::runtime_error& e) {
