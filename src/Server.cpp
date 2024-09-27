@@ -1,12 +1,24 @@
 #include <iostream>
 #include <string>
 
+bool is_alpha_numeric(char c) {
+    return isalpha(c) || isdigit(c);
+}
+
 bool match_pattern(const std::string& input_line, const std::string& pattern) {
     if (pattern.length() == 1) {
         return input_line.find(pattern) != std::string::npos;
     } 
     else if(pattern == "\\d") {
         return input_line.find_first_of("0123456789") != std::string::npos;
+    }
+    else if(pattern == "\\w") {
+        // is alphabet or numeric
+        for(char c: input_line) {
+            if(is_alpha_numeric(c)) return true;
+        }
+
+        return false;
     }
     else {
         throw std::runtime_error("Unhandled pattern " + pattern);
