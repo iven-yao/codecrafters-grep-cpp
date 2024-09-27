@@ -20,6 +20,10 @@ bool match_pattern(const std::string& input_line, const std::string& pattern) {
 
         return false;
     }
+    else if(pattern.at(0) == '[' && pattern.at(pattern.length() -1) == ']') {
+        const std::string pos = pattern.substr(1, pattern.length() - 2);
+        return input_line.find_first_of(pos) != std::string::npos;
+    }
     else {
         throw std::runtime_error("Unhandled pattern " + pattern);
     }
