@@ -93,10 +93,22 @@ bool match_pattern(const std::string& text, const std::string& pattern) {
                     return match_pattern(text.substr(tmp), pattern.substr(2));
                 }
             }
+            // check ?
+            else if(pattern.length() > 1 && pattern[1] == '?') {
+                if(pattern[0] == text[0]) {
+                    return match_pattern(text.substr(1), pattern.substr(2));
+                }
+
+                return match_pattern(text, pattern.substr(2));
+            }
             else if(pattern[0] == text[i]) {
                 return match_pattern(text.substr(i+1), pattern.substr(1));
             }
         }
+    }
+
+    if(pattern.length() == 2 && pattern[1] == '?') {
+        return true;
     }
 
     return false;
