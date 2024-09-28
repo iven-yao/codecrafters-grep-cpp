@@ -1,48 +1,20 @@
 #include <iostream>
 #include <string>
+#include <vector>
+
 bool match_pattern_helper(const std::string& text, const std::string& pattern, bool end_anchor);
 
-// not support wild card + and * yet
-int get_match_length(const std::string& pattern) {
-    int size = 0;
-
-    for(size_t i = 0; i < pattern.size(); i++) {
-        if(pattern[i] == '\\') {
-            size++;
-            i++;
-        } else if(pattern[i] == '[') {
-            while(pattern[i] != ']') {
-                i++;
-            }
-            size++;
-        } else if(pattern[i] == '^' || pattern[i] == '$') {
-            continue;
-        } else {
-            size++;
-        }
-    }
-
-    return size;
-}
-
-bool match_group(char c, const std::string group, bool neg) {
-    bool match = group.find(c) != std::string::npos;
-    return neg ? !match : match;
-}
-
-bool match_group_helper(const std::string& text, const std::string& pattern, bool end_anchor = false) {
+bool match_group(const std::string& text, const std::string& pattern) {
     if(text.empty()) return false;
 
-    bool neg = pattern.at(0) == '^';
-    size_t end_pos = pattern.find_first_of(']');
-    if(end_pos == std::string::npos) {
-        throw std::runtime_error("Invalid pattern: close bracket not found");
+    bool neg = pattern[0] == '^';
+    size_t start_pos = neg? 1 : 0;
+    bool match = pattern.substr(start_pos).find(text[0]) != std::string::npos;
+    if(neg) {
+        match = !match;
     }
 
-    size_t start_pos = neg? 1 : 0;
-    bool match = match_group(text.at(0), pattern.substr(start_pos, end_pos-start_pos), neg);
-
-    return match && match_pattern_helper(text.substr(1), pattern.substr(end_pos+1), end_anchor);
+    return match;
 }
 
 bool match_special_char(char special, char c) {
@@ -57,8 +29,38 @@ bool match_special_char(char special, char c) {
     }
 }
 
+bool match_option(const std::string& text, const std::string& pattern, bool end_anchor) {
+    std::vector<std::string> v = {};
+    size_t end_pos = 0;
+    size_t start_pos = 0;
+    int open_bracket_count = 1;
+    while(open_bracket_count > 0) {
+        end_pos++;
+        if(open_bracket_count == 1 && pattern[end_pos] == '|') {
+            v.push_back(pattern.substr(start_pos, end_pos - start_pos));
+            start_pos = end_pos+1;
+        }
+        if(pattern[end_pos] == ')') {
+            open_bracket_count--;
+            v.push_back(pattern.substr(start_pos, end_pos - start_pos));
+            start_pos = end_pos+1;
+        }
+
+        if(pattern[end_pos] == '(') {
+            open_bracket_count++;
+        }
+    }
+
+    for(std::string option: v) {
+        if(match_pattern_helper(text, option+pattern.substr(start_pos), end_anchor)) return true;
+    }
+
+    return false;
+}
+
 bool match_pattern_helper(const std::string& text, const std::string& pattern, bool end_anchor) {
-    std::cout << text << "," << pattern << "\n";
+    // debug log
+    // std::cout << text << "," << pattern << "\n";
 
     if(end_anchor) {
         if(pattern.empty() && text.empty()) {
@@ -90,7 +92,8 @@ bool match_pattern_helper(const std::string& text, const std::string& pattern, b
         }
     }
 
-    if(pattern.at(0) == '\\') {
+    if(pattern[0] == '\\') {
+        // match special character
         if(pattern.length() < 2) {
             throw std::runtime_error("Invalid pattern: missing element after escape(\\)");
         }
@@ -98,8 +101,16 @@ bool match_pattern_helper(const std::string& text, const std::string& pattern, b
         if(match_special_char(pattern[1], text[0])) {
             return match_pattern_helper(text.substr(1), pattern.substr(2), end_anchor);
         }
-    } else if(pattern.at(0) == '[') {
-        return match_group_helper(text, pattern.substr(1));
+    } else if(pattern[0] == '[') {
+        // match in group
+        size_t end_pos = pattern.find_first_of(']');
+        if(end_pos == std::string::npos) {
+            throw std::runtime_error("Invalid pattern: close bracket not found");
+        }
+        return match_group(text, pattern.substr(1, end_pos - 1)) && match_pattern_helper(text.substr(1), pattern.substr(end_pos+1), end_anchor);
+    } else if(pattern[0] == '(') {
+        // match either option
+        return match_option(text, pattern.substr(1), end_anchor);
     } else {
         // check +
         if(pattern.length() > 1 && pattern[1] == '+') {
@@ -137,12 +148,12 @@ bool match_pattern(const std::string& text, const std::string& pattern) {
     }
 
     // start anchor
-    if(pattern.at(0) == '^') {
+    if(pattern[0] == '^') {
         return match_pattern_helper(text, pattern.substr(1), false);
     }
 
     // end anchor
-    if(pattern.at(pattern.length() - 1) == '$') {
+    if(pattern[pattern.length() - 1] == '$') {
         for(size_t i = 0; i < text.length(); i++) {
             if(match_pattern_helper(text.substr(i), pattern.substr(0, pattern.size() - 1), true)) {
                 return true;
