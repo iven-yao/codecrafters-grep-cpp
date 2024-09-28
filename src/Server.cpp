@@ -2,6 +2,29 @@
 #include <string>
 bool match_pattern(const std::string& text, const std::string& pattern);
 
+// not support wild card + and * yet
+int get_match_length(const std::string& pattern) {
+    int size = 0;
+
+    for(size_t i = 0; i < pattern.size(); i++) {
+        if(pattern[i] == '\\') {
+            size++;
+            i++;
+        } else if(pattern[i] == '[') {
+            while(pattern[i] != ']') {
+                i++;
+            }
+            size++;
+        } else if(pattern[i] == '^' || pattern[i] == '$') {
+            continue;
+        } else {
+            size++;
+        }
+    }
+
+    return size;
+}
+
 bool match_group(char c, const std::string group, bool neg) {
     bool match = group.find(c) != std::string::npos;
     return neg ? !match : match;
@@ -40,11 +63,11 @@ bool match_pattern(const std::string& text, const std::string& pattern) {
     }
 
     if(pattern.at(0) == '^') {
-        return match_pattern(text.substr(0, pattern.length() - 1), pattern.substr(1));
+        return match_pattern(text.substr(0, get_match_length(pattern)), pattern.substr(1));
     }
 
     if(pattern.at(pattern.length() - 1) == '$') {
-        return match_pattern(text.substr(text.length() - pattern.length() + 1), pattern.substr(0, pattern.length() - 1));
+        return match_pattern(text.substr(text.length() - get_match_length(pattern)), pattern.substr(0, pattern.length() - 1));
     }
 
     for(size_t i = 0; i < text.length(); i++) {
@@ -59,7 +82,18 @@ bool match_pattern(const std::string& text, const std::string& pattern) {
         } else if(pattern.at(0) == '[') {
             return match_group_helper(text, pattern.substr(1));
         } else {
-            if(pattern[0] == text[i]) {
+
+            // check +
+            if(pattern.length() > 1 && pattern[1] == '+') {
+                if(pattern[0] == text[0]) {
+                    size_t tmp = 1;
+                    while(tmp < text.length() && text[tmp] == pattern[0]) {
+                        tmp++;
+                    }
+                    return match_pattern(text.substr(tmp), pattern.substr(2));
+                }
+            }
+            else if(pattern[0] == text[i]) {
                 return match_pattern(text.substr(i+1), pattern.substr(1));
             }
         }
@@ -90,7 +124,6 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Uncomment this block to pass the first stage
     //
     std::string input_line;
     std::getline(std::cin, input_line);
