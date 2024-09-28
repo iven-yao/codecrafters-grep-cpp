@@ -1,6 +1,6 @@
 #include <iostream>
 #include <string>
-bool match_pattern(const std::string& text, const std::string& pattern);
+bool match_pattern_helper(const std::string& text, const std::string& pattern, bool end_anchor);
 
 // not support wild card + and * yet
 int get_match_length(const std::string& pattern) {
@@ -30,7 +30,7 @@ bool match_group(char c, const std::string group, bool neg) {
     return neg ? !match : match;
 }
 
-bool match_group_helper(const std::string& text, const std::string& pattern) {
+bool match_group_helper(const std::string& text, const std::string& pattern, bool end_anchor = false) {
     if(text.empty()) return false;
 
     bool neg = pattern.at(0) == '^';
@@ -42,7 +42,7 @@ bool match_group_helper(const std::string& text, const std::string& pattern) {
     size_t start_pos = neg? 1 : 0;
     bool match = match_group(text.at(0), pattern.substr(start_pos, end_pos-start_pos), neg);
 
-    return match && match_pattern(text.substr(1), pattern.substr(end_pos+1));
+    return match && match_pattern_helper(text.substr(1), pattern.substr(end_pos+1), end_anchor);
 }
 
 bool match_special_char(char special, char c) {
@@ -57,58 +57,106 @@ bool match_special_char(char special, char c) {
     }
 }
 
+bool match_pattern_helper(const std::string& text, const std::string& pattern, bool end_anchor) {
+    std::cout << text << "," << pattern << "\n";
+
+    if(end_anchor) {
+        if(pattern.empty() && text.empty()) {
+            return true;
+        }
+
+        if(pattern.size() == 2 && pattern[1] == '?' && text.empty()) {
+            return true;
+        }
+
+        if(text.empty()) {
+            return false;
+        }
+
+        if(pattern.empty()) {
+            return false;
+        }
+    } else {
+        if(pattern.empty()){
+            return true;
+        }
+
+        if(pattern.size() == 2 && pattern[1] == '?') {
+            return true;
+        }
+
+        if(text.empty()) {
+            return false;
+        }
+    }
+
+    if(pattern.at(0) == '\\') {
+        if(pattern.length() < 2) {
+            throw std::runtime_error("Invalid pattern: missing element after escape(\\)");
+        }
+
+        if(match_special_char(pattern[1], text[0])) {
+            return match_pattern_helper(text.substr(1), pattern.substr(2), end_anchor);
+        }
+    } else if(pattern.at(0) == '[') {
+        return match_group_helper(text, pattern.substr(1));
+    } else {
+        // check +
+        if(pattern.length() > 1 && pattern[1] == '+') {
+            if(pattern[0] == text[0]) {
+                size_t tmp = 1;
+                while(tmp < text.length() && text[tmp] == pattern[0]) {
+                    tmp++;
+                }
+                return match_pattern_helper(text.substr(tmp), pattern.substr(2), end_anchor);
+            }
+        }
+        // check ?
+        else if(pattern.length() > 1 && pattern[1] == '?') {
+            if(pattern[0] == text[0]) {
+                return match_pattern_helper(text.substr(1), pattern.substr(2), end_anchor);
+            }
+
+            return match_pattern_helper(text, pattern.substr(2), end_anchor);
+        }
+        // wildcard
+        else if(pattern[0] == '.') {
+            return match_pattern_helper(text.substr(1), pattern.substr(1), end_anchor);
+        }
+        else if(pattern[0] == text[0]) {
+            return match_pattern_helper(text.substr(1), pattern.substr(1), end_anchor);
+        }
+    }
+
+    return false;
+}
+
 bool match_pattern(const std::string& text, const std::string& pattern) {
     if(pattern.empty()) {
         return true;
     }
 
+    // start anchor
     if(pattern.at(0) == '^') {
-        return match_pattern(text.substr(0, get_match_length(pattern)), pattern.substr(1));
+        return match_pattern_helper(text, pattern.substr(1), false);
     }
 
+    // end anchor
     if(pattern.at(pattern.length() - 1) == '$') {
-        return match_pattern(text.substr(text.length() - get_match_length(pattern)), pattern.substr(0, pattern.length() - 1));
-    }
-
-    for(size_t i = 0; i < text.length(); i++) {
-        if(pattern.at(0) == '\\') {
-            if(pattern.length() < 2) {
-                throw std::runtime_error("Invalid pattern: missing element after escape(\\)");
-            }
-
-            if(match_special_char(pattern.at(1), text.at(i))) {
-                return match_pattern(text.substr(i+1), pattern.substr(2));
-            }
-        } else if(pattern.at(0) == '[') {
-            return match_group_helper(text, pattern.substr(1));
-        } else {
-
-            // check +
-            if(pattern.length() > 1 && pattern[1] == '+') {
-                if(pattern[0] == text[0]) {
-                    size_t tmp = 1;
-                    while(tmp < text.length() && text[tmp] == pattern[0]) {
-                        tmp++;
-                    }
-                    return match_pattern(text.substr(tmp), pattern.substr(2));
-                }
-            }
-            // check ?
-            else if(pattern.length() > 1 && pattern[1] == '?') {
-                if(pattern[0] == text[0]) {
-                    return match_pattern(text.substr(1), pattern.substr(2));
-                }
-
-                return match_pattern(text, pattern.substr(2));
-            }
-            else if(pattern[0] == text[i]) {
-                return match_pattern(text.substr(i+1), pattern.substr(1));
+        for(size_t i = 0; i < text.length(); i++) {
+            if(match_pattern_helper(text.substr(i), pattern.substr(0, pattern.size() - 1), true)) {
+                return true;
             }
         }
+
+        return false;
     }
 
-    if(pattern.length() == 2 && pattern[1] == '?') {
-        return true;
+    // regular match from any index
+    for(size_t i = 0; i < text.length(); i++) {
+        if(match_pattern_helper(text.substr(i), pattern, false)) {
+            return true;
+        }
     }
 
     return false;
