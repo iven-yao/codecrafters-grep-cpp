@@ -1,5 +1,7 @@
 #include <iostream>
 #include <string>
+#define _START 1
+#define _NORMAL 0
 
 bool is_alpha_numeric(char c) {
     return isalpha(c) || isdigit(c);
@@ -13,11 +15,28 @@ bool is_in_group(char c, const std::string group) {
     return false;
 }
 
+bool match_special_char(char special, char c) {
+    if(special == 'd') {
+        return isdigit(c);
+    }
+    else if(special == 'w') {
+        return is_alpha_numeric(c);
+    }
+    else {
+        throw std::runtime_error("Unhandled pattern \\" + special);
+    }
+}
+
 bool match_pattern(const std::string& input_line, const std::string& pattern) {
     int i = 0;
-    while( i < input_line.length()) {
+    bool start_anchor = false;
+    if(pattern.at(0) == '^') {
+        // start anchor only match once from the begining
+        start_anchor = true;
+    }
 
-        int j = 0;
+    while( i < input_line.length()) {
+        int j = start_anchor ? 1 : 0;
         int start = i;
         // start matching the pattern
         while(j < pattern.length() && start < input_line.length()) {
@@ -25,16 +44,10 @@ bool match_pattern(const std::string& input_line, const std::string& pattern) {
             if(pattern.at(j) == '\\') {
                 // match special characters
                 j++;
-                if(pattern.at(j) == 'd') {
-                    match = isdigit(input_line.at(start));
-                }
-                else if(pattern.at(j) == 'w') {
-                    match = is_alpha_numeric(input_line.at(start));
-                }
-                else {
-                    throw std::runtime_error("Unhandled pattern " + pattern + " at index " + std::to_string(j));
-                }
-            } else if(pattern.at(j) == '[') {
+                match = match_special_char(pattern.at(j), input_line.at(start));
+                
+            } 
+            else if(pattern.at(j) == '[') {
                 // match group
                 j++;
                 bool positive = true;
@@ -55,7 +68,8 @@ bool match_pattern(const std::string& input_line, const std::string& pattern) {
                 } else {
                     match = !is_in_group(input_line.at(start), group);
                 }
-            } else {
+            }
+            else {
                 // match specific char
                 match = (input_line.at(start) == pattern.at(j));
             }
@@ -70,6 +84,10 @@ bool match_pattern(const std::string& input_line, const std::string& pattern) {
         // if match to the end of the pattern, return true
         if(j == pattern.length()) {
             return true;
+        }
+        // if start_anchor is set to true, and the first run isn't a match, should return false directly
+        if(start_anchor) {
+            return false;
         }
         // otherwise, start matching from next possible index
         i++;
