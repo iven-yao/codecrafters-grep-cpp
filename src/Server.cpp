@@ -1,18 +1,25 @@
 #include <iostream>
 #include <string>
-#define _START 1
-#define _NORMAL 0
+bool match_pattern(const std::string& text, const std::string& pattern);
 
-bool is_alpha_numeric(char c) {
-    return isalpha(c) || isdigit(c);
+bool match_group(char c, const std::string group, bool neg) {
+    bool match = group.find(c) != std::string::npos;
+    return neg ? !match : match;
 }
 
-bool is_in_group(char c, const std::string group) {
-    for(char ele: group) {
-        if(c == ele) return true;
+bool match_group_helper(const std::string& text, const std::string& pattern) {
+    if(text.empty()) return false;
+
+    bool neg = pattern.at(0) == '^';
+    size_t end_pos = pattern.find_first_of(']');
+    if(end_pos == std::string::npos) {
+        throw std::runtime_error("Invalid pattern: close bracket not found");
     }
 
-    return false;
+    size_t start_pos = neg? 1 : 0;
+    bool match = match_group(text.at(0), pattern.substr(start_pos, end_pos-start_pos), neg);
+
+    return match && match_pattern(text.substr(1), pattern.substr(end_pos+1));
 }
 
 bool match_special_char(char special, char c) {
@@ -20,80 +27,46 @@ bool match_special_char(char special, char c) {
         return isdigit(c);
     }
     else if(special == 'w') {
-        return is_alpha_numeric(c);
+        return isalnum(c);
     }
     else {
         throw std::runtime_error("Unhandled pattern \\" + special);
     }
 }
 
-bool match_pattern(const std::string& input_line, const std::string& pattern) {
-    int i = 0;
-    bool start_anchor = false;
-    if(pattern.at(0) == '^') {
-        // start anchor only match once from the begining
-        start_anchor = true;
+bool match_pattern(const std::string& text, const std::string& pattern) {
+    if(pattern.empty()) {
+        return true;
     }
 
-    while( i < input_line.length()) {
-        int j = start_anchor ? 1 : 0;
-        int start = i;
-        // start matching the pattern
-        while(j < pattern.length() && start < input_line.length()) {
-            bool match = false;
-            if(pattern.at(j) == '\\') {
-                // match special characters
-                j++;
-                match = match_special_char(pattern.at(j), input_line.at(start));
-                
-            } 
-            else if(pattern.at(j) == '[') {
-                // match group
-                j++;
-                bool positive = true;
-                if(pattern.at(j) == '^') {
-                    positive = false;
-                    j++;
-                }
-                int group_start = j;
-                int group_size = 0;
-                while(j < pattern.length() && pattern.at(j) != ']') {
-                    j++;
-                    group_size++;
-                }
+    if(pattern.at(0) == '^') {
+        return match_pattern(text.substr(0, pattern.length() - 1), pattern.substr(1));
+    }
 
-                std::string group = pattern.substr(group_start, group_size);
-                if(positive) {
-                    match = is_in_group(input_line.at(start), group);
-                } else {
-                    match = !is_in_group(input_line.at(start), group);
-                }
-            }
-            else {
-                // match specific char
-                match = (input_line.at(start) == pattern.at(j));
+    if(pattern.at(pattern.length() - 1) == '$') {
+        return match_pattern(text.substr(text.length() - pattern.length() + 1), pattern.substr(0, pattern.length() - 1));
+    }
+
+    for(size_t i = 0; i < text.length(); i++) {
+        if(pattern.at(0) == '\\') {
+            if(pattern.length() < 2) {
+                throw std::runtime_error("Invalid pattern: missing element after escape(\\)");
             }
 
-            if(match) {
-                start++;
-                j++;
-            } else {
-                break;
+            if(match_special_char(pattern.at(1), text.at(i))) {
+                return match_pattern(text.substr(i+1), pattern.substr(2));
+            }
+        } else if(pattern.at(0) == '[') {
+            return match_group_helper(text, pattern.substr(1));
+        } else {
+            if(pattern[0] == text[i]) {
+                return match_pattern(text.substr(i+1), pattern.substr(1));
             }
         }
-        // if match to the end of the pattern, return true
-        if(j == pattern.length()) {
-            return true;
-        }
-        // if start_anchor is set to true, and the first run isn't a match, should return false directly
-        if(start_anchor) {
-            return false;
-        }
-        // otherwise, start matching from next possible index
-        i++;
     }
 
     return false;
+        
 }
 
 int main(int argc, char* argv[]) {
