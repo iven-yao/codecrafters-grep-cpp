@@ -5,36 +5,76 @@ bool is_alpha_numeric(char c) {
     return isalpha(c) || isdigit(c);
 }
 
+bool is_in_group(char c, const std::string group) {
+    for(char ele: group) {
+        if(c == ele) return true;
+    }
+
+    return false;
+}
+
 bool match_pattern(const std::string& input_line, const std::string& pattern) {
-    if (pattern.length() == 1) {
-        return input_line.find(pattern) != std::string::npos;
-    } 
-    else if(pattern == "\\d") {
-        return input_line.find_first_of("0123456789") != std::string::npos;
-    }
-    else if(pattern == "\\w") {
-        // is alphabet or numeric
-        for(char c: input_line) {
-            if(is_alpha_numeric(c)) return true;
-        }
+    int i = 0;
+    while( i < input_line.length()) {
 
-        return false;
-    }
-    else if(pattern.at(0) == '[' && pattern.at(pattern.length() -1) == ']') {
+        int j = 0;
+        int start = i;
+        // start matching the pattern
+        while(j < pattern.length() && start < input_line.length()) {
+            bool match = false;
+            if(pattern.at(j) == '\\') {
+                // match special characters
+                j++;
+                if(pattern.at(j) == 'd') {
+                    match = isdigit(input_line.at(start));
+                }
+                else if(pattern.at(j) == 'w') {
+                    match = is_alpha_numeric(input_line.at(start));
+                }
+                else {
+                    throw std::runtime_error("Unhandled pattern " + pattern + " at index " + std::to_string(j));
+                }
+            } else if(pattern.at(j) == '[') {
+                // match group
+                j++;
+                bool positive = true;
+                if(pattern.at(j) == '^') {
+                    positive = false;
+                    j++;
+                }
+                int group_start = j;
+                int group_size = 0;
+                while(j < pattern.length() && pattern.at(j) != ']') {
+                    j++;
+                    group_size++;
+                }
 
-        if(pattern.at(1) == '^') {
-            const std::string neg = pattern.substr(2, pattern.length() - 2);
-            return input_line.find_first_of(neg) == std::string::npos;
-        }
-        else {
-            const std::string pos = pattern.substr(1, pattern.length() - 2);
-            return input_line.find_first_of(pos) != std::string::npos;
-        }
+                std::string group = pattern.substr(group_start, group_size);
+                if(positive) {
+                    match = is_in_group(input_line.at(start), group);
+                } else {
+                    match = !is_in_group(input_line.at(start), group);
+                }
+            } else {
+                // match specific char
+                match = (input_line.at(start) == pattern.at(j));
+            }
 
+            if(match) {
+                start++;
+                j++;
+            } else {
+                break;
+            }
+        }
+        // if match to the end of the pattern, return true
+        if(j == pattern.length()) {
+            return true;
+        }
+        // otherwise, start matching from next possible index
+        i++;
     }
-    else {
-        throw std::runtime_error("Unhandled pattern " + pattern);
-    }
+
 }
 
 int main(int argc, char* argv[]) {
